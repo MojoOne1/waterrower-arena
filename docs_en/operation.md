@@ -2,8 +2,6 @@
 
 [🇩🇪 Deutsch](../docs_de/betrieb.md) · 🇬🇧 English
 
-> The server was split out of [MojoOne1/waterrower-mqtt](https://github.com/MojoOne1/waterrower-mqtt); its earlier git history is part of this repository's history (`git log --full-history -- server/`).
-
 ## Contents
 
 - [Requirements](#requirements)

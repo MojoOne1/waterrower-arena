@@ -1,4 +1,4 @@
-"""The uplink protocol as docs/protokoll.md describes it, message by message.
+"""The uplink protocol as docs_en/protocol.md describes it, message by message.
 
 In-process through FastAPI's test client, like smoke.py. This is what a rowing
 computer (the ESP firmware, or anything else) relies on: hello/welcome, live

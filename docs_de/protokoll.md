@@ -1,5 +1,7 @@
 # Uplink-Protokoll (Rudergerät ↔ Arena)
 
+🇩🇪 Deutsch · [🇬🇧 English](../docs_en/protocol.md)
+
 Jedes Rudergerät hält **eine WebSocket-Verbindung** zur Arena:
 
 ```
@@ -8,7 +10,7 @@ wss://<arena>/ws/uplink        (bzw. ws:// bei http-Adresse)
 
 Alle Nachrichten sind JSON-Textframes mit einem Feld `type`. Die Referenzimplementierung
 der Geräteseite ist `firmware/src/uplink.c` im Repository
-[MojoOne1/waterrower-mqtt](https://github.com/MojoOne1/waterrower-mqtt) (Branch `esp-only`),
+[MojoOne1/waterrower-esp](https://github.com/MojoOne1/waterrower-esp),
 die der Serverseite `server/app/ingest.py`. Das Protokoll hat keine Versionsnummer;
 unbekannte Nachrichten und Felder werden ignoriert.
 

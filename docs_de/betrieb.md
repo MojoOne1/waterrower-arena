@@ -1,5 +1,7 @@
 # Betrieb
 
+🇩🇪 Deutsch · [🇬🇧 English](../docs_en/operation.md)
+
 ## Inhalt
 
 - [Voraussetzungen](#voraussetzungen)

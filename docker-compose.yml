@@ -1,12 +1,12 @@
 # Arena server for rowing against others.
 #
-# The rowing computers (ESP32-S3 running MojoOne1/waterrower-mqtt, branch
-# esp-only) connect outbound to this server, so nobody needs port forwarding. Cloudflare Tunnel publishes it:
+# The rowing computers (ESP32-S3 running MojoOne1/waterrower-esp)
+# connect outbound to this server, so nobody needs port forwarding. Cloudflare Tunnel publishes it:
 #
 #   .env next to this file:
 #     ARENA_ADMIN_PASSWORD=something-long
 #     TUNNEL_TOKEN=...            (Cloudflare Zero Trust -> Tunnels)
-#   (see .env.example; the full guide is docs/betrieb.md)
+#   (see .env.example; the full guide is docs_en/operation.md)
 #
 # In the tunnel, point your hostname (e.g. arena.example.com) at http://arena:8090.
 # Then: docker compose up -d --build

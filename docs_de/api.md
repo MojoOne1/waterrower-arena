@@ -1,5 +1,7 @@
 # HTTP-API
 
+🇩🇪 Deutsch · [🇬🇧 English](../docs_en/api.md)
+
 Die Weboberfläche benutzt diese API; sie ist nicht als stabile öffentliche Schnittstelle
 zugesagt. Alles läuft über JSON, die Anmeldung über das Cookie `arena_session`
 (`HttpOnly`, `SameSite=Lax`).

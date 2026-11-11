@@ -32,7 +32,7 @@ internet.
 
 1. In Cloudflare Zero Trust create a tunnel under *Networks → Tunnels* and copy the token.
 2. In the tunnel create a **Public Hostname**, e.g. `arena.example.com`, with the
-   service `http://arena:8090` (`arena` is the container name in the Compose network).
+   service `http://waterrower-arena:8090` (`waterrower-arena` is the service name in the Compose network).
 3. Fetch the repository and create `.env`:
 
    ```bash
@@ -48,7 +48,7 @@ internet.
 
    ```bash
    docker compose up -d --build
-   docker compose logs -f arena      # check the start
+   docker compose logs -f waterrower-arena      # check the start
    ```
 
 5. Open `https://arena.example.com` and sign in with `admin` and the password from `.env`.
@@ -64,7 +64,7 @@ even if you only start the arena. If you use your own reverse proxy (Caddy, Trae
 nginx, Nginx Proxy Manager …):
 
 1. Delete the whole `cloudflared:` block from `docker-compose.yml`.
-2. Publish a port on the `arena` service, ideally only locally or in the proxy's network:
+2. Publish a port on the `waterrower-arena` service, ideally only locally or in the proxy's network:
 
    ```yaml
        ports:
@@ -103,7 +103,7 @@ In this case you can give the ESP `http://<host>:8090` as the address.
 All settings are environment variables of the container. **The Compose file only passes
 through these:** `TZ`, `ARENA_ADMIN_USER`, `ARENA_ADMIN_NAME`, `ARENA_ADMIN_PASSWORD`,
 `ARENA_ADMIN_RESET`, `ARENA_SECURE_COOKIES`. Everything else in the table you must add
-yourself under `environment:` of the `arena` service, e.g. `ARENA_COUNTDOWN: "15"`.
+yourself under `environment:` of the `waterrower-arena` service, e.g. `ARENA_COUNTDOWN: "15"`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -141,7 +141,7 @@ the newest rows sit in `arena.db-wal`, and copying only `arena.db` can yield a s
 damaged file. The backup file contains password hashes and invitation codes and belongs in
 a private place.
 
-**Restore:** stop the container (`docker compose stop arena`), put the file in place as
+**Restore:** stop the container (`docker compose stop waterrower-arena`), put the file in place as
 `server/data/arena.db`, remove any existing `arena.db-wal` and `arena.db-shm`, start the
 container.
 
@@ -231,4 +231,4 @@ lock itself out.
 | Device online but workouts missing | The ESP re-sends missed workouts on the next connect (*backfill*). The arena log shows `Backfilled …` per workout. |
 | Times shifted by hours | Check `TZ` in the container and the time zone in the ESP. Unix times are stored; `TZ` only affects the display. |
 | Race hangs after the winner | Stragglers get `ARENA_FINISH_GRACE` seconds (default 600). The admin can abort or finish the race. |
-| Tunnel shows 502 | The hostname in the tunnel must point to `http://arena:8090` and both containers must run in the same Compose project. Check with `docker compose ps`. |
+| Tunnel shows 502 | The hostname in the tunnel must point to `http://waterrower-arena:8090` and both containers must run in the same Compose project. Check with `docker compose ps`. |

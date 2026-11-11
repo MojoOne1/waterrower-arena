@@ -54,7 +54,7 @@ docker compose up -d --build
 ```
 
 In the Cloudflare tunnel the public hostname (e.g. `arena.example.com`) points to
-`http://arena:8090`. Then sign in with `admin` and the password from `.env`.
+`http://waterrower-arena:8090`. Then sign in with `admin` and the password from `.env`.
 
 **Connecting a rowing device:** create and invite an athlete, then create a token under
 *Account → Tracker connection*. In the ESP (web UI, *Arena* card) enter **address**

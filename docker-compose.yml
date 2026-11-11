@@ -8,7 +8,7 @@
 #     TUNNEL_TOKEN=...            (Cloudflare Zero Trust -> Tunnels)
 #   (see .env.example; the full guide is docs_en/operation.md)
 #
-# In the tunnel, point your hostname (e.g. arena.example.com) at http://arena:8090.
+# In the tunnel, point your hostname (e.g. arena.example.com) at http://waterrower-arena:8090.
 # Then: docker compose up -d --build
 # In the arena create an athlete, mint a token under "Tracker-Verbindung" and
 # paste it with https://arena.example.com into the ESP's web page (Arena card).
@@ -16,11 +16,11 @@
 # Without Cloudflare (own reverse proxy, or plain http while testing): delete the
 # whole cloudflared service below - TUNNEL_TOKEN is required while it is in this
 # file, even if you only start the arena - and add `ports: ["8090:8090"]` to the
-# arena service. Over plain http also set ARENA_SECURE_COOKIES=0 in .env (a
+# waterrower-arena service. Over plain http also set ARENA_SECURE_COOKIES=0 in .env (a
 # Secure cookie is dropped over http).
 
 services:
-  arena:
+  waterrower-arena:
     build: ./server
     restart: unless-stopped
     environment:
@@ -44,6 +44,6 @@ services:
     environment:
       TUNNEL_TOKEN: "${TUNNEL_TOKEN:?put TUNNEL_TOKEN in .env}"
     depends_on:
-      - arena
+      - waterrower-arena
     security_opt:
       - no-new-privileges:true

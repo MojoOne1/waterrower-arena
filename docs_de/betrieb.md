@@ -33,7 +33,7 @@ den Weg übers Internet.
 1. In Cloudflare Zero Trust unter *Networks → Tunnels* einen Tunnel anlegen und
    den Token kopieren.
 2. Im Tunnel einen **Public Hostname** anlegen, z. B. `arena.example.com`, mit dem
-   Dienst `http://arena:8090` (`arena` ist der Name des Containers im Compose-Netz).
+   Dienst `http://waterrower-arena:8090` (`waterrower-arena` ist der Name des Dienstes im Compose-Netz).
 3. Repository holen und `.env` anlegen:
 
    ```bash
@@ -49,7 +49,7 @@ den Weg übers Internet.
 
    ```bash
    docker compose up -d --build
-   docker compose logs -f arena      # Start prüfen
+   docker compose logs -f waterrower-arena      # Start prüfen
    ```
 
 5. `https://arena.example.com` öffnen, mit `admin` und dem Passwort aus der `.env` anmelden.
@@ -66,7 +66,7 @@ steht, auch wenn du nur die Arena startest. Wer einen eigenen Reverse-Proxy
 (Caddy, Traefik, nginx, Nginx Proxy Manager …) benutzt:
 
 1. Den kompletten Block `cloudflared:` aus `docker-compose.yml` löschen.
-2. Beim Dienst `arena` einen Port veröffentlichen, am besten nur lokal oder im
+2. Beim Dienst `waterrower-arena` einen Port veröffentlichen, am besten nur lokal oder im
    Netz des Proxys:
 
    ```yaml
@@ -109,7 +109,7 @@ diesem Fall `http://<host>:8090` als Adresse geben.
 Alle Einstellungen sind Umgebungsvariablen des Containers. **Die Compose-Datei reicht
 nur diese durch:** `TZ`, `ARENA_ADMIN_USER`, `ARENA_ADMIN_NAME`, `ARENA_ADMIN_PASSWORD`,
 `ARENA_ADMIN_RESET`, `ARENA_SECURE_COOKIES`. Alles andere in der Tabelle musst du unter
-`environment:` des Dienstes `arena` selbst eintragen, z. B. `ARENA_COUNTDOWN: "15"`.
+`environment:` des Dienstes `waterrower-arena` selbst eintragen, z. B. `ARENA_COUNTDOWN: "15"`.
 
 | Variable | Standard | Bedeutung |
 |---|---|---|
@@ -148,7 +148,7 @@ stehen in `arena.db-wal`, und ein Kopieren nur von `arena.db` kann eine veraltet
 beschädigte Datei liefern. Die Backup-Datei enthält Passwort-Hashes und Einladungscodes
 und gehört an einen privaten Ort.
 
-**Wiederherstellen:** Container stoppen (`docker compose stop arena`), die
+**Wiederherstellen:** Container stoppen (`docker compose stop waterrower-arena`), die
 Datei als `server/data/arena.db` ablegen, dabei vorhandene `arena.db-wal` und
 `arena.db-shm` entfernen, Container starten.
 
@@ -238,4 +238,4 @@ versucht, damit er sich nicht selbst aussperrt.
 | Gerät online, aber Einheiten fehlen | Der ESP sendet verpasste Einheiten beim nächsten Verbinden nach (*Backfill*). Das Log der Arena zeigt `Backfilled …` pro Einheit. |
 | Zeiten um Stunden verschoben | `TZ` im Container und Zeitzone im ESP prüfen. Gespeichert werden Unix-Zeiten, `TZ` betrifft nur die Anzeige. |
 | Rennen hängt nach dem Sieger | Nachzügler bekommen `ARENA_FINISH_GRACE` Sekunden (Standard 600). Der Admin kann das Rennen abbrechen oder abschließen. |
-| Tunnel zeigt 502 | Hostname im Tunnel muss auf `http://arena:8090` zeigen und beide Container im selben Compose-Projekt laufen. Mit `docker compose ps` prüfen. |
+| Tunnel zeigt 502 | Hostname im Tunnel muss auf `http://waterrower-arena:8090` zeigen und beide Container im selben Compose-Projekt laufen. Mit `docker compose ps` prüfen. |

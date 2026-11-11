@@ -39,6 +39,8 @@ for the devices lives in [MojoOne1/waterrower-esp](https://github.com/MojoOne1/w
 - **Protection against guessing:** lockouts for sign-in, invitation codes and device
   connections, adjustable in the admin area.
 
+> **Real-world multiplayer is untested.** Everything works end to end and is covered by automated checks, but two people with two rowing machines racing at the same moment has not happened yet. See [Status and limits](docs_en/features.md#status-and-limits).
+
 ## Quick start
 
 Requirement: Docker with Compose. For the tunnel a Cloudflare account; without the tunnel
@@ -66,6 +68,7 @@ Everything is available in English (`docs_en/`) and German (`docs_de/`).
 | Topic | English | Deutsch |
 |---|---|---|
 | Installation, tunnel or own proxy, all settings, backup, update, forgotten password, troubleshooting | [operation.md](docs_en/operation.md) | [betrieb.md](docs_de/betrieb.md) |
+| Races, badges, records, limits, versioning | [features.md](docs_en/features.md) | [funktionen.md](docs_de/funktionen.md) |
 | WebSocket protocol between rowing device and arena (for your own clients) | [protocol.md](docs_en/protocol.md) | [protokoll.md](docs_de/protokoll.md) |
 | HTTP API of the web UI and permissions per endpoint | [api.md](docs_en/api.md) | [api.md](docs_de/api.md) |
 | Tests | [tests.md](docs_en/tests.md) | [tests.md](docs_de/tests.md) |

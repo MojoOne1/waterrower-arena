@@ -1,5 +1,7 @@
 # Tests
 
+🇩🇪 Deutsch · [🇬🇧 English](../docs_en/tests.md)
+
 Zwei Suiten, kein Framework: Jede druckt pro Prüfung eine Zeile und endet mit Exit-Code
 ungleich 0, wenn etwas fehlschlug. `run_all.py` führt alle als eigene Prozesse aus und
 fasst zusammen.
@@ -12,7 +14,7 @@ python tests/run_all.py
 | Suite | Was sie abdeckt | Braucht |
 |---|---|---|
 | `smoke.py` | Die Arena im Prozess über den Testclient von FastAPI: Anmeldung und Sperren, Einladungen, Geräte-Token, eine normale Einheit über den Uplink, Bestleistungen, Rennen mit Countdown, Ziel und Geistern, die Befehle `reset`/`end` ans Gerät, Rechte, Healthcheck, Excel-Export, Backup, Auslieferung der Oberfläche | nichts außerhalb des Checkouts |
-| `uplink_protocol.py` | Das [Uplink-Protokoll](../docs_de/protokoll.md) Nachricht für Nachricht: `hello`/`welcome`/`known`, Schließcodes 4401 und 4403, Live-Messwerte und `summary`, Prüfung und Verwerfen ungültiger Werte, `backfill` mit `ack` (auch wiederholt, zu groß, ohne ID), `sync`, `ping`/`pong` | nichts außerhalb des Checkouts |
+| `uplink_protocol.py` | Das [Uplink-Protokoll](protokoll.md) Nachricht für Nachricht: `hello`/`welcome`/`known`, Schließcodes 4401 und 4403, Live-Messwerte und `summary`, Prüfung und Verwerfen ungültiger Werte, `backfill` mit `ack` (auch wiederholt, zu groß, ohne ID), `sync`, `ping`/`pong` | nichts außerhalb des Checkouts |
 
 Die Tests legen jeweils eine eigene temporäre Datenbank an und berühren `server/data` nicht. Sie
 greifen nicht aufs Netz zu.

@@ -68,7 +68,7 @@ Everything is available in English (`docs_en/`) and German (`docs_de/`).
 | Installation, tunnel or own proxy, all settings, backup, update, forgotten password, troubleshooting | [operation.md](docs_en/operation.md) | [betrieb.md](docs_de/betrieb.md) |
 | WebSocket protocol between rowing device and arena (for your own clients) | [protocol.md](docs_en/protocol.md) | [protokoll.md](docs_de/protokoll.md) |
 | HTTP API of the web UI and permissions per endpoint | [api.md](docs_en/api.md) | [api.md](docs_de/api.md) |
-| Tests | [tests/README.md](tests/README.md) (German) | [tests/README.md](tests/README.md) |
+| Tests | [tests.md](docs_en/tests.md) | [tests.md](docs_de/tests.md) |
 
 ## Code layout
 
@@ -97,7 +97,7 @@ DB_PATH=/tmp/arena.db ARENA_ADMIN_PASSWORD='at-least-12-chars' ARENA_SECURE_COOK
 ```
 
 `ARENA_SECURE_COOKIES=0` is needed as long as you access it over `http://`, otherwise the
-browser discards the sign-in cookie. Tests: `python tests/run_all.py`.
+browser discards the sign-in cookie. Tests: `python tests/run_all.py` ([details](docs_en/tests.md)).
 
 ## Licence
 

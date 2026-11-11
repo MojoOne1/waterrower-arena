@@ -45,6 +45,16 @@ def _widths(ws, widths):
 
 
 def _save(wb) -> bytes:
+    # openpyxl stores any string that starts with "=" as a formula. Display
+    # names and session IDs come from athletes and their devices, and a name
+    # like =HYPERLINK(...) or =WEBSERVICE(...) would run in everybody's
+    # Excel. This module writes no formulas of its own, so every one found
+    # here came from data and is written back as plain text.
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.data_type == "f":
+                    cell.data_type = "s"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

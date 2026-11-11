@@ -57,11 +57,11 @@ with TestClient(main.app) as c:
     check("duplicate name refused", r.status_code == 409, r.status_code)
 
     c2 = TestClient(main.app)
-    r = c2.get(f"/api/invite/{invite}")
+    r = c2.post("/api/invite", json={"code": invite})
     check("invite readable", r.status_code == 200, r.text)
     r = c2.post("/api/join", json={"code": invite, "password": "Janspassword1!"})
     check("invite redeemed", r.status_code == 200, r.text)
-    r = c2.get(f"/api/invite/{invite}")
+    r = c2.post("/api/invite", json={"code": invite})
     check("invite is single use", r.status_code == 404, r.status_code)
     r = c2.get("/api/me")
     check("jan signed in", r.status_code == 200 and r.json()["name"] == "jan", r.text)
@@ -336,8 +336,8 @@ with TestClient(main.app) as c:
 
     print(chr(10) + "-- wrong invitation codes lock the address")
     for _ in range(2):
-        TestClient(main.app).get("/api/invite/not-a-real-code")
-    r = TestClient(main.app).get("/api/invite/not-a-real-code")
+        TestClient(main.app).post("/api/invite", json={"code": "not-a-real-code"})
+    r = TestClient(main.app).post("/api/invite", json={"code": "not-a-real-code"})
     check("two wrong codes are enough", r.status_code == 429, r.status_code)
     r = TestClient(main.app).post("/api/join",
                                   json={"code": "still-wrong", "password": "Whatever12345!"})

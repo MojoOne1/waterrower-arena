@@ -9,6 +9,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -132,11 +133,55 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; "
 MAX_BODY = 1 << 20      # 1 MiB; nothing the API takes comes near it
 
 
+class BodyLimit:
+    """Refuse bodies over MAX_BODY whether or not they announce a length.
+
+    Checking Content-Length alone lets a chunked upload of any size through,
+    and it is read into memory before authentication is even looked at. So
+    the body is collected here, counted as it arrives, and handed on only
+    when it fits.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        for name, value in scope.get("headers", ()):
+            if name == b"content-length" and value.isdigit() and int(value) > MAX_BODY:
+                return await self._too_large(send)
+        chunks, size = [], 0
+        while True:
+            msg = await receive()
+            if msg["type"] == "http.disconnect":
+                return
+            body = msg.get("body", b"")
+            size += len(body)
+            if size > MAX_BODY:
+                return await self._too_large(send)
+            chunks.append(body)
+            if not msg.get("more_body"):
+                break
+        done = False
+
+        async def replay():
+            nonlocal done
+            if not done:
+                done = True
+                return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+            return await receive()
+
+        return await self.app(scope, replay, send)
+
+    @staticmethod
+    async def _too_large(send):
+        await JSONResponse({"detail": "Request too large"}, status_code=413)(
+            {"type": "http"}, None, send)
+
+
 @app.middleware("http")
 async def guard(request, call_next):
-    length = request.headers.get("content-length")
-    if length and length.isdigit() and int(length) > MAX_BODY:
-        return JSONResponse({"detail": "Request too large"}, status_code=413)
     response = await call_next(request)
     response.headers["Content-Security-Policy"] = CSP
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -150,6 +195,7 @@ async def guard(request, call_next):
     return response
 
 
+app.add_middleware(BodyLimit)
 app.include_router(api.router)
 
 
@@ -163,14 +209,22 @@ async def ws_uplink(websocket: WebSocket):
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket):
     """The browsers' feed: live tiles, race ticks, new sessions."""
+    # Browsers send the cookie with a WebSocket handshake from any page on the
+    # same site (a sibling subdomain, say) and no CORS applies - so the page
+    # opening the socket has to be this one.
+    origin = websocket.headers.get("origin")
+    if origin and urlsplit(origin).netloc.lower() != websocket.headers.get("host", "").lower():
+        await websocket.close(code=4403, reason="foreign origin")
+        return
     token = websocket.cookies.get(auth.COOKIE)
-    athlete = db.web_session_owner(auth.token_hash(token)) if token else None
+    session_hash = auth.token_hash(token) if token else None
+    athlete = db.web_session_owner(session_hash) if token else None
     if not athlete:
         await websocket.close(code=4401, reason="not signed in")
         return
 
     await websocket.accept()
-    viewer = Viewer(athlete["id"])
+    viewer = Viewer(athlete["id"], session_hash)
     hub.add_viewer(viewer)
     try:
         await websocket.send_json({
@@ -196,6 +250,9 @@ async def _pump(websocket: WebSocket, viewer: Viewer) -> None:
             msg = await asyncio.wait_for(viewer.queue.get(), timeout=20)
         except asyncio.TimeoutError:
             msg = {"type": "ping"}      # keeps the tunnel from timing out
+        if msg.get("type") == "_revoked":
+            await websocket.close(code=4401, reason="signed out")
+            return
         await websocket.send_json(msg)
 
 

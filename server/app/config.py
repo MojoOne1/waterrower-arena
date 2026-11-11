@@ -1,6 +1,7 @@
 """Environment configuration. Everything has a working default except the
 admin password, which has to be set once to bootstrap the first login."""
 
+import ipaddress
 import os
 
 APP_VERSION = os.environ.get("APP_VERSION", "dev")
@@ -64,6 +65,21 @@ SECURITY_DEFAULTS = {
     "uplink_ip_limit": int(os.environ.get("ARENA_UPLINK_IP_LIMIT", "10")),
     "uplink_ip_minutes": int(os.environ.get("ARENA_UPLINK_IP_MINUTES", "15")),
 }
+
+# Which direct peers may tell us the caller's address (CF-Connecting-IP or
+# the last X-Forwarded-For entry). Default: loopback and private networks,
+# which is where cloudflared or a reverse proxy sits - a peer from the
+# internet talking to a published port is never believed.
+# "*" trusts every peer; only safe while nothing but the proxy reaches the port.
+TRUSTED_PROXIES = [
+    ipaddress.ip_network(n, strict=False)
+    for n in (("0.0.0.0/0", "::/0") if n.strip() == "*" else (n.strip(),)
+              for n in os.environ.get(
+                  "ARENA_TRUSTED_PROXIES",
+                  "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fc00::/7",
+              ).split(",") if n.strip())
+    for n in n
+]
 
 # Race pacing.
 COUNTDOWN_S = int(os.environ.get("ARENA_COUNTDOWN", "10"))

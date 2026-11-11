@@ -478,7 +478,7 @@ async function startJoin(code) {
   const form = $("join-form");
   form.hidden = false;
   try {
-    const who = await api(`/api/invite/${encodeURIComponent(code)}`);
+    const who = await api("/api/invite", { method: "POST", body: { code } });
     $("join-who").textContent = t("joinWho", who.display_name || who.name);
     $("join-display").value = who.display_name || "";
   } catch {

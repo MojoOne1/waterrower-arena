@@ -78,8 +78,8 @@ steht, auch wenn du nur die Arena startest. Wer einen eigenen Reverse-Proxy
    muss an sein**, die Pfade `/ws/uplink` und `/ws/live` brauchen sie. Lange
    Leerlaufzeiten sind unkritisch: Arena und Geräte schicken sich alle 20 Sekunden
    Pings.
-4. Falls der Proxy ein anderer Rechner oder Container ist, das Weiterleiten der
-   Client-Adresse einschränken (siehe `ARENA_TRUSTED_PROXIES` unten).
+4. Sitzt der Proxy außerhalb der privaten Netze (z. B. auf einer öffentlichen Adresse),
+   ihn in `ARENA_TRUSTED_PROXIES` eintragen (siehe unten).
 
 **Nur zum Testen über `http://`:** Port veröffentlichen wie oben (ohne `127.0.0.1:`,
 wenn du von einem anderen Rechner zugreifst) und in der `.env`
@@ -124,7 +124,7 @@ nur diese durch:** `TZ`, `ARENA_ADMIN_USER`, `ARENA_ADMIN_NAME`, `ARENA_ADMIN_PA
 | `ARENA_COUNTDOWN` | `10` | Sekunden Countdown vor dem Start |
 | `ARENA_TICK_HZ` | `2` | Wie oft pro Sekunde Renndaten an die Browser gehen |
 | `ARENA_FINISH_GRACE` | `600` | Sekunden, die Nachzügler nach dem Sieger noch bekommen, bevor das Rennen gewertet wird |
-| `ARENA_TRUSTED_PROXIES` | `*` | Von wem `X-Forwarded-For` geglaubt wird (Liste von IPs/Netzen für uvicorn). `*` ist nur sicher, wenn ausschließlich der Tunnel/Proxy den Port erreichen kann – sonst könnte jeder eine beliebige Adresse im Header angeben und alle Sperren umgehen. |
+| `ARENA_TRUSTED_PROXIES` | Loopback und private Netze | Welche direkten Gegenstellen die Adresse des Aufrufers nennen dürfen (IPs/Netze, kommagetrennt). Nur von ihnen liest die Arena `CF-Connecting-IP`, sonst den **letzten** Eintrag aus `X-Forwarded-For`; alle anderen gelten mit ihrer Socket-Adresse. Der Standard passt für cloudflared und einen Proxy im selben Docker-Netz oder LAN. `*` vertraut jeder Gegenstelle. |
 | `ARENA_LOGIN_IP_LIMIT` / `_MINUTES` | `10` / `15` | Anmeldeversuche pro Adresse, dann so viele Minuten gesperrt |
 | `ARENA_LOGIN_NAME_LIMIT` / `_MINUTES` | `30` / `15` | Fehlversuche gegen ein Konto von überall. Absichtlich lockerer, weil man so jemanden aussperren könnte. |
 | `ARENA_INVITE_IP_LIMIT` / `_MINUTES` | `10` / `60` | Falsche Einladungscodes pro Adresse |
@@ -165,6 +165,16 @@ docker compose up -d --build
 
 Die Datenbank bleibt im Volume. Die Version zeigt die Oberfläche an (Endpunkt `/api/version`, nur angemeldet).
 
+**Update von einem Image vor 2.1 (Container lief als root):** Der Container läuft jetzt als
+Benutzer `1000`. Den Datenordner einmalig auf ihn umstellen, sonst kann die Arena ihre
+Datenbank nicht schreiben:
+
+```bash
+docker compose down
+sudo chown -R 1000:1000 ./server/data      # bzw. der Pfad deines Volumes
+docker compose up -d
+```
+
 Optional baut der Workflow `.github/workflows/docker-publish.yml` das Image bei jedem
 Push auf `main` für amd64 und arm64 und veröffentlicht es als
 `ghcr.io/mojoone1/waterrower-arena/arena` (Tags `latest`, Version aus `VERSION` und
@@ -204,8 +214,18 @@ versucht, damit er sich nicht selbst aussperrt.
 - Eingaben der Geräte: Messwerte werden vor dem Speichern auf Typ und Wertebereich
   geprüft (keine Texte, NaN oder absurden Zahlen), Einheiten-IDs sind auf 64 druckbare
   Zeichen begrenzt, Nachsenden auf 20 000 Messwerte pro Einheit.
-- Der Container läuft mit `no-new-privileges`. Die Arena hat keinen TLS-Terminator;
-  HTTPS liefert der Tunnel oder dein Proxy.
+- Adresse des Aufrufers für Sperren und Sicherheitsprotokoll: Nur vertrauenswürdige
+  Proxys dürfen sie nennen (`CF-Connecting-IP`, sonst der letzte `X-Forwarded-For`-Eintrag).
+  Ein gefälschter Header umgeht so weder eine Sperre noch sperrt er jemand anderen aus.
+- Widerruf wirkt sofort: Abmelden, Passwort zurücksetzen oder ändern, Geräte-Token
+  widerrufen und Athlet löschen schließen die betroffenen offenen Verbindungen.
+- Anfragen sind auf 1 MiB begrenzt, auch in Teilen (chunked) gesendete; eine
+  WebSocket-Nachricht auf 4 MiB; höchstens 16 Geräte dürfen gleichzeitig beim Verbinden
+  (vor dem `hello`) sein.
+- Den Live-Feed öffnet nur die eigene Seite der Arena (`Origin`-Prüfung).
+- Excel-Export: Text, der wie eine Formel aussieht (`=…`), wird als Text geschrieben.
+- Der Container läuft als unprivilegierter Benutzer mit `no-new-privileges`. Die Arena
+  hat keinen TLS-Terminator; HTTPS liefert der Tunnel oder dein Proxy.
 
 ## Fehlersuche
 

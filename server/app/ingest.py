@@ -41,6 +41,8 @@ log = logging.getLogger("ingest")
 
 PING_S = 20          # Cloudflare drops an idle tunnel; this keeps it warm
 MAX_BACKFILL_ROWS = 20000
+MAX_PENDING = 16     # sockets that have not said hello yet
+_pending = 0
 
 
 def _num(value, lo: float = 0.0, hi: float = 1e7):
@@ -85,7 +87,7 @@ def _when(value, fallback: float) -> float:
 
 
 async def uplink_endpoint(websocket: WebSocket, db, hub) -> None:
-    ip = websocket.client.host if websocket.client else "?"
+    ip = auth.client_ip(websocket)
     # Guessing a 256-bit token is hopeless, so this is not about guessing:
     # without it, anyone can open sockets here all day for free, each one
     # holding a task for fifteen seconds waiting on a hello.
@@ -94,13 +96,31 @@ async def uplink_endpoint(websocket: WebSocket, db, hub) -> None:
         await websocket.close(code=4429, reason="too many attempts")
         return
 
-    await websocket.accept()
+    # Each unauthenticated socket holds a task and up to one message for 15 s.
+    # A handful of trackers never need more than a few at once.
+    global _pending
+    if _pending >= MAX_PENDING:
+        await websocket.close(code=1013, reason="busy")
+        return
+    _pending += 1
+    try:
+        await websocket.accept()
+        hello = await asyncio.wait_for(websocket.receive_json(), timeout=15)
+    except (WebSocketDisconnect, asyncio.TimeoutError, ValueError):
+        return
+    finally:
+        _pending -= 1
     athlete = None
     uplink = None
     pinger = None
     try:
-        hello = await asyncio.wait_for(websocket.receive_json(), timeout=15)
+        if not isinstance(hello, dict):
+            hello = {}
         if hello.get("type") != "hello" or not hello.get("token"):
+            auth.UPLINK_IP.record(ip)
+            await websocket.close(code=4401, reason="hello expected")
+            return
+        if not isinstance(hello.get("token"), str) or len(hello["token"]) > 256:
             auth.UPLINK_IP.record(ip)
             await websocket.close(code=4401, reason="hello expected")
             return
@@ -115,7 +135,8 @@ async def uplink_endpoint(websocket: WebSocket, db, hub) -> None:
 
         athlete = owner
         await asyncio.to_thread(db.touch_token, owner["token_id"])
-        uplink = Uplink(athlete["id"], websocket, str(hello.get("agent", ""))[:80])
+        uplink = Uplink(athlete["id"], websocket, str(hello.get("agent", ""))[:80],
+                        auth.token_hash(hello["token"]))
         hub.uplinks[athlete["id"]] = uplink
         hub.set_online(athlete["id"], True, uplink.agent)
         known = await asyncio.to_thread(db.known_remote_ids, athlete["id"])

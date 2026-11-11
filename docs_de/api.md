@@ -21,7 +21,7 @@ Fehler kommen als `{"detail": "…"}` mit dem passenden HTTP-Status (401 nicht a
 | `GET /api/me` | angemeldet (401 sonst) | eigenes Profil |
 | `POST /api/login` | offen, mit Sperren | `{name, password}` |
 | `POST /api/logout` | – | Sitzung beenden |
-| `GET /api/invite/{code}` | offen, mit Sperren | für wen eine Einladung gilt |
+| `POST /api/invite` | offen, mit Sperren | `{code}`: für wen eine Einladung gilt (POST, damit Codes nicht in Zugriffsprotokollen landen) |
 | `POST /api/join` | offen, mit Sperren | `{code, password}`: Einladung einlösen, Passwort setzen |
 | `POST /api/password` | angemeldet | `{old_password, password}`: Passwort ändern |
 

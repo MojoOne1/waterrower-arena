@@ -19,8 +19,9 @@ log = logging.getLogger("hub")
 class Viewer:
     """A browser on /ws/live. Slow ones lose frames, never the connection."""
 
-    def __init__(self, athlete_id: int):
+    def __init__(self, athlete_id: int, session_hash: str | None = None):
         self.athlete_id = athlete_id
+        self.session_hash = session_hash
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=60)
 
     def send(self, msg: dict) -> None:
@@ -35,8 +36,9 @@ class Viewer:
 class Uplink:
     """A tracker's WebSocket, from the hub's side: somewhere to send commands."""
 
-    def __init__(self, athlete_id: int, websocket, agent: str):
+    def __init__(self, athlete_id: int, websocket, agent: str, token_hash: str = ""):
         self.athlete_id = athlete_id
+        self.token_hash = token_hash
         self.websocket = websocket
         self.agent = agent
         self.connected_at = time.time()
@@ -124,6 +126,30 @@ class Hub:
 
     def remove_viewer(self, viewer: Viewer) -> None:
         self.viewers.discard(viewer)
+
+    async def revalidate(self) -> None:
+        """Close whatever lost its right to be open.
+
+        Sign-ins and device tokens are checked when a socket opens; without
+        this, signing out, resetting a password, revoking a token or
+        deleting an athlete left the open connections streaming on.
+        """
+        for viewer in list(self.viewers):
+            ok = viewer.session_hash and await asyncio.to_thread(
+                self.db.web_session_owner, viewer.session_hash)
+            if not ok:
+                viewer.send({"type": "_revoked"})
+        for athlete_id, uplink in list(self.uplinks.items()):
+            ok = uplink.token_hash and await asyncio.to_thread(
+                self.db.token_owner, uplink.token_hash)
+            if not ok:
+                try:
+                    await uplink.websocket.close(code=4403, reason="token revoked")
+                except Exception:
+                    pass
+                if self.uplinks.get(athlete_id) is uplink:
+                    self.uplinks.pop(athlete_id, None)
+                    self.set_online(athlete_id, False)
 
     def broadcast(self, msg: dict) -> None:
         for v in list(self.viewers):

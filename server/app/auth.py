@@ -6,6 +6,7 @@ whole thing costs one import and no dependency.
 """
 
 import hashlib
+import ipaddress
 import hmac
 import secrets
 import threading
@@ -132,9 +133,38 @@ POLICIES = {"login_ip": BY_IP, "login_name": BY_NAME,
             "invite_ip": INVITE_IP, "uplink_ip": UPLINK_IP}
 
 
-def client_ip(request: Request) -> str:
-    """Behind the tunnel uvicorn has already resolved X-Forwarded-For."""
-    return request.client.host if request.client else "?"
+def _trusted(peer: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(ip in net for net in config.TRUSTED_PROXIES)
+
+
+def peer_address(peer: str | None, headers) -> str:
+    """The caller's address, for the lockouts and the security log.
+
+    Only a proxy we trust may tell us who the caller is, and then only in a
+    header the caller cannot write: Cloudflare sets CF-Connecting-IP itself,
+    while it *appends* to an X-Forwarded-For the client sent - so the first
+    entry of that header is whatever the attacker wanted, and only the last
+    one was written by the proxy in front of us. Anything reaching the port
+    directly from an untrusted address is taken at its socket address.
+    """
+    peer = peer or "?"
+    if not _trusted(peer):
+        return peer
+    cf = (headers.get("cf-connecting-ip") or "").strip()
+    if cf:
+        return cf[:64]
+    xff = headers.get("x-forwarded-for") or ""
+    last = xff.split(",")[-1].strip()
+    return last[:64] if last else peer
+
+
+def client_ip(request) -> str:
+    """Works for a Request and a WebSocket alike."""
+    return peer_address(request.client.host if request.client else None, request.headers)
 
 
 # OWASP's floor for scrypt is n=2**17; that is 128 MiB *per verification*,

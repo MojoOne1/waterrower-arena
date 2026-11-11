@@ -20,7 +20,7 @@ permission, 404 does not exist, 409 name taken, 429 locked).
 | `GET /api/me` | signed in (otherwise 401) | own profile |
 | `POST /api/login` | open, with lockouts | `{name, password}` |
 | `POST /api/logout` | – | end the session |
-| `GET /api/invite/{code}` | open, with lockouts | whom an invitation is for |
+| `POST /api/invite` | open, with lockouts | `{code}`: whom an invitation is for (POST so codes stay out of access logs) |
 | `POST /api/join` | open, with lockouts | `{code, password}`: redeem invitation, set password |
 | `POST /api/password` | signed in | `{old_password, password}`: change password |
 

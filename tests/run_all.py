@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-SUITES = ["smoke.py", "uplink_protocol.py"]
+SUITES = ["smoke.py", "uplink_protocol.py", "security.py"]
 
 results = []
 for name in SUITES:

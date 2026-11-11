@@ -2,7 +2,7 @@
 
 [🇩🇪 Deutsch](../docs_de/tests.md) · 🇬🇧 English
 
-Two suites, no framework: each prints one line per check and exits with a non-zero code if
+Three suites, no framework: each prints one line per check and exits with a non-zero code if
 something failed. `run_all.py` runs them all as separate processes and summarises.
 
 ```bash
@@ -14,6 +14,7 @@ python tests/run_all.py
 |---|---|---|
 | `smoke.py` | The arena in-process via FastAPI's test client: sign-in and lockouts, invitations, device tokens, a normal workout over the uplink, personal bests, races with countdown, finish and ghosts, the `reset`/`end` commands to the device, permissions, healthcheck, Excel export, backup, delivery of the UI | nothing outside the checkout |
 | `uplink_protocol.py` | The [uplink protocol](protocol.md) message by message: `hello`/`welcome`/`known`, close codes 4401 and 4403, live samples and `summary`, validation and discarding of invalid values, `backfill` with `ack` (also repeated, too large, without an ID), `sync`, `ping`/`pong` | nothing outside the checkout |
+| `security.py` | The fixes from the security audit: caller address behind proxies, formulas in the Excel export, oversized (also chunked) bodies, colour and permission checks, query bounds, revoking closes open connections, `Origin` check on the live feed, malformed `hello` | nothing outside the checkout |
 
 Each test creates its own temporary database and does not touch `server/data`. They do not
 access the network.

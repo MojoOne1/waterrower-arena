@@ -74,8 +74,8 @@ nginx, Nginx Proxy Manager …):
 3. Point the proxy at `http://127.0.0.1:8090`. **WebSocket forwarding must be on**; the
    paths `/ws/uplink` and `/ws/live` need it. Long idle times are fine: arena and devices
    ping each other every 20 seconds.
-4. If the proxy is another machine or container, restrict forwarding of the client address
-   (see `ARENA_TRUSTED_PROXIES` below).
+4. If the proxy sits outside the private networks (e.g. on a public address), add it to
+   `ARENA_TRUSTED_PROXIES` (see below).
 
 **For testing over `http://` only:** publish the port as above (without `127.0.0.1:` if you
 access it from another machine) and set `ARENA_SECURE_COOKIES=0` in `.env`. With the value
@@ -118,7 +118,7 @@ yourself under `environment:` of the `arena` service, e.g. `ARENA_COUNTDOWN: "15
 | `ARENA_COUNTDOWN` | `10` | Seconds of countdown before the start |
 | `ARENA_TICK_HZ` | `2` | How many times per second race data goes to the browsers |
 | `ARENA_FINISH_GRACE` | `600` | Seconds stragglers get after the winner before the race is scored |
-| `ARENA_TRUSTED_PROXIES` | `*` | Whose `X-Forwarded-For` is believed (list of IPs/networks for uvicorn). `*` is only safe if solely the tunnel/proxy can reach the port; otherwise anyone could put any address in the header and bypass all lockouts. |
+| `ARENA_TRUSTED_PROXIES` | loopback and private networks | Which direct peers may name the caller's address (comma-separated IPs/networks). Only from them does the arena read `CF-Connecting-IP`, otherwise the **last** `X-Forwarded-For` entry; anyone else is taken at their socket address. The default fits cloudflared and a proxy in the same Docker network or LAN. `*` trusts every peer. |
 | `ARENA_LOGIN_IP_LIMIT` / `_MINUTES` | `10` / `15` | Sign-in attempts per address, then locked for that many minutes |
 | `ARENA_LOGIN_NAME_LIMIT` / `_MINUTES` | `30` / `15` | Failed attempts against one account from anywhere. Deliberately looser, because it could be used to lock someone out. |
 | `ARENA_INVITE_IP_LIMIT` / `_MINUTES` | `10` / `60` | Wrong invitation codes per address |
@@ -159,6 +159,16 @@ docker compose up -d --build
 The database stays in the volume. The UI shows the version (endpoint `/api/version`,
 signed in only).
 
+**Updating from an image before 2.1 (container ran as root):** the container now runs as
+user `1000`. Make the data directory belong to it once, otherwise the arena cannot write
+its database:
+
+```bash
+docker compose down
+sudo chown -R 1000:1000 ./server/data      # or the path of your volume
+docker compose up -d
+```
+
 Optionally the workflow `.github/workflows/docker-publish.yml` builds the image on every
 push to `main` for amd64 and arm64 and publishes it as
 `ghcr.io/mojoone1/waterrower-arena/arena` (tags `latest`, version from `VERSION`, and
@@ -198,8 +208,17 @@ lock itself out.
 - Device input: samples are checked for type and value range before storing (no text,
   NaN or absurd numbers), workout IDs are limited to 64 printable characters, re-sending to
   20,000 samples per workout.
-- The container runs with `no-new-privileges`. The arena has no TLS terminator; HTTPS
-  comes from the tunnel or your proxy.
+- Caller address for lockouts and the security log: only trusted proxies may name it
+  (`CF-Connecting-IP`, otherwise the last `X-Forwarded-For` entry), so a forged header
+  neither bypasses a lockout nor locks somebody else out.
+- Revoking takes effect at once: signing out, resetting or changing a password, revoking a
+  device token or deleting an athlete closes the affected open connections.
+- Request bodies are capped at 1 MiB, chunked ones included; a WebSocket message at 4 MiB;
+  at most 16 devices may be connecting (before `hello`) at the same time.
+- The live feed only accepts the arena's own page (`Origin` check).
+- Excel export: text that looks like a formula (`=…`) is written as text.
+- The container runs as an unprivileged user with `no-new-privileges`. The arena has no
+  TLS terminator; HTTPS comes from the tunnel or your proxy.
 
 ## Troubleshooting
 

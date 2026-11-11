@@ -1,5 +1,6 @@
 """The REST API. Everything the browser does apart from the live socket."""
 
+import asyncio
 import csv
 import io
 import logging
@@ -9,7 +10,7 @@ import secrets
 import tempfile
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -40,17 +41,21 @@ class Login(BaseModel):
     password: str = Field(max_length=256)
 
 
+class InviteRef(BaseModel):
+    code: str = Field(max_length=128)
+
+
 class JoinInvite(BaseModel):
     code: str = Field(max_length=128)
     # Strength is checked in the endpoint so the reason comes back as a
     # sentence rather than as a validation error about a string length.
-    password: str
-    display_name: str = ""
+    password: str = Field(max_length=256)
+    display_name: str = Field(default="", max_length=40)
 
 
 class NewPassword(BaseModel):
-    old_password: str
-    password: str
+    old_password: str = Field(max_length=256)
+    password: str = Field(max_length=256)
 
 
 class NewAthlete(BaseModel):
@@ -61,16 +66,18 @@ class NewAthlete(BaseModel):
 
 class AthletePatch(BaseModel):
     display_name: str = Field(min_length=1, max_length=40)
-    color: str = ""
+    # A colour ends up in style properties and on canvases in everybody's
+    # browser; nothing but #rrggbb has any business there.
+    color: str = Field(default="", pattern=r"^(#[0-9a-fA-F]{6})?$")
     is_admin: bool | None = None        # admins only; None leaves it alone
 
 
 class NewToken(BaseModel):
-    label: str = ""
+    label: str = Field(default="", max_length=40)
 
 
 class NewRace(BaseModel):
-    name: str = ""
+    name: str = Field(default="", max_length=60)
     mode: str = "distance"
     target: int = 2000
     template_id: int | None = None
@@ -196,10 +203,11 @@ def login(body: Login, request: Request, response: Response):
 
 
 @router.post("/api/logout")
-def logout(request: Request, response: Response):
+async def logout(request: Request, response: Response):
     token = request.cookies.get(auth.COOKIE)
     if token:
         db.drop_web_session(auth.token_hash(token))
+        await hub.revalidate()
     auth.clear_cookie(response)
     return {"ok": True}
 
@@ -221,9 +229,11 @@ def _check_invite_code(code: str, request: Request) -> dict:
     return athlete
 
 
-@router.get("/api/invite/{code}")
-def check_invite(code: str, request: Request):
-    athlete = _check_invite_code(code, request)
+@router.post("/api/invite")
+def check_invite(body: InviteRef, request: Request):
+    """POST, not GET: a code in the path ends up in every access log on the
+    way - uvicorn's, the tunnel's, a proxy's."""
+    athlete = _check_invite_code(body.code, request)
     return {"name": athlete["name"], "display_name": athlete["display_name"]}
 
 
@@ -244,20 +254,29 @@ def join_invite(body: JoinInvite, request: Request, response: Response):
 
 
 @router.post("/api/password")
-def change_password(body: NewPassword, response: Response,
-                    athlete: dict = Depends(auth.current_athlete)):
-    if not auth.verify_password(body.old_password, athlete["password_hash"]):
+async def change_password(body: NewPassword, response: Response,
+                          athlete: dict = Depends(auth.current_athlete)):
+    # Somebody holding a stolen cookie should not get to guess the current
+    # password at leisure either: same lockout as the sign-in, per account.
+    wait = BY_NAME.retry_after(athlete["name"])
+    if wait:
+        raise HTTPException(429, f"Too many attempts - try again in {int(wait / 60) + 1} min",
+                            headers={"Retry-After": str(int(wait))})
+    if not await asyncio.to_thread(auth.verify_password, body.old_password,
+                                   athlete["password_hash"]):
+        BY_NAME.record(athlete["name"])
         raise HTTPException(403, "Current password is wrong")
     problem = auth.password_problem(body.password)
     if problem:
         raise HTTPException(400, problem)
-    db.set_password(athlete["id"], auth.hash_password(body.password))
+    db.set_password(athlete["id"], await asyncio.to_thread(auth.hash_password, body.password))
     # A stolen cookie outlives a password change otherwise, which is the
     # one moment somebody is most likely trying to get rid of one.
     db.drop_web_sessions_of(athlete["id"])
     token = auth.new_token()
     db.add_web_session(auth.token_hash(token), athlete["id"], config.SESSION_DAYS * 86400)
     auth.set_cookie(response, token)
+    await hub.revalidate()
     return {"ok": True}
 
 
@@ -287,14 +306,17 @@ def patch_athlete(athlete_id: int, body: AthletePatch,
     target = db.athlete(athlete_id)
     if not target:
         raise HTTPException(404, "No such athlete")
-    color = body.color.strip() or target["color"]
-    db.update_athlete(athlete_id, body.display_name.strip(), color)
-    if body.is_admin is not None and bool(target["is_admin"]) != body.is_admin:
+    change_admin = body.is_admin is not None and bool(target["is_admin"]) != body.is_admin
+    # Every check before the first write: a refused request changes nothing.
+    if change_admin:
         if not athlete["is_admin"]:
             raise HTTPException(403, "Admins only")
         if not body.is_admin and db.count_admins() <= 1:
             # Losing the last admin means nobody can hand the role back.
             raise HTTPException(409, "Someone has to stay an admin")
+    color = body.color.strip() or target["color"]
+    db.update_athlete(athlete_id, body.display_name.strip(), color)
+    if change_admin:
         db.set_admin(athlete_id, body.is_admin)
         if body.is_admin:
             races.drop_athlete(athlete_id)      # admins do not sit in races
@@ -302,21 +324,23 @@ def patch_athlete(athlete_id: int, body: AthletePatch,
 
 
 @router.post("/api/athletes/{athlete_id}/invite")
-def new_invite(athlete_id: int, _: dict = Depends(auth.current_admin)):
+async def new_invite(athlete_id: int, _: dict = Depends(auth.current_admin)):
     """Hands out a fresh code and clears the password - this is the reset."""
     if not db.athlete(athlete_id):
         raise HTTPException(404, "No such athlete")
     code = secrets.token_urlsafe(12)
     db.reset_invite(athlete_id, code)
     db.drop_web_sessions_of(athlete_id)
+    await hub.revalidate()
     return {"invite_code": code}
 
 
 @router.delete("/api/athletes/{athlete_id}")
-def delete_athlete(athlete_id: int, admin: dict = Depends(auth.current_admin)):
+async def delete_athlete(athlete_id: int, admin: dict = Depends(auth.current_admin)):
     if athlete_id == admin["id"]:
         raise HTTPException(400, "You cannot delete yourself")
     db.delete_athlete(athlete_id)
+    await hub.revalidate()
     return {"ok": True}
 
 
@@ -336,21 +360,23 @@ def create_token(athlete_id: int, body: NewToken, athlete: dict = Depends(auth.c
     """The only time the token itself is ever returned - it is stored hashed."""
     _own_or_admin(athlete, athlete_id)
     token = auth.new_token()
-    db.add_token(athlete_id, auth.token_hash(token), body.label.strip()[:40])
+    db.add_token(athlete_id, auth.token_hash(token), body.label.strip())
     return {"token": token}
 
 
 @router.delete("/api/athletes/{athlete_id}/tokens/{token_id}")
-def delete_token(athlete_id: int, token_id: int, athlete: dict = Depends(auth.current_athlete)):
+async def delete_token(athlete_id: int, token_id: int, athlete: dict = Depends(auth.current_athlete)):
     _own_or_admin(athlete, athlete_id)
     db.delete_token(athlete_id, token_id)
+    await hub.revalidate()      # a revoked token must not keep streaming
     return {"ok": True}
 
 
 # --- Sessions --------------------------------------------------------------
 
 @router.get("/api/sessions")
-def list_sessions(athlete_id: int | None = None, limit: int = 200, days: int | None = None,
+def list_sessions(athlete_id: int | None = None, limit: int = Query(200, ge=1, le=1000),
+                  days: int | None = Query(None, ge=1, le=36500),
                   _: dict = Depends(auth.current_athlete)):
     since = time.time() - days * 86400 if days else None
     return db.list_sessions(athlete_id, min(limit, 1000), since)
@@ -391,7 +417,7 @@ def export_session_xlsx(session_id: int, _: dict = Depends(auth.current_athlete)
 
 
 @router.get("/api/export.xlsx")
-def export_all_xlsx(days: int | None = None, _: dict = Depends(auth.current_athlete)):
+def export_all_xlsx(days: int | None = Query(None, ge=1, le=36500), _: dict = Depends(auth.current_athlete)):
     """Every athlete's sessions in one sheet, sortable, plus the totals."""
     since = time.time() - days * 86400 if days else None
     sessions = db.list_sessions(limit=5000, since=since)
@@ -683,7 +709,7 @@ def delete_template(template_id: int, _: dict = Depends(auth.current_admin)):
 
 
 @router.get("/api/races")
-def list_races(limit: int = 50, _: dict = Depends(auth.current_athlete)):
+def list_races(limit: int = Query(50, ge=1, le=200), _: dict = Depends(auth.current_athlete)):
     return db.list_races(min(limit, 200))
 
 
@@ -728,7 +754,7 @@ def leaderboards(_: dict = Depends(auth.current_athlete)):
 
 
 @router.get("/api/totals")
-def totals(days: int | None = None, _: dict = Depends(auth.current_athlete)):
+def totals(days: int | None = Query(None, ge=1, le=36500), _: dict = Depends(auth.current_athlete)):
     return db.totals(time.time() - days * 86400 if days else None)
 
 

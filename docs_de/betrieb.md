@@ -2,6 +2,8 @@
 
 🇩🇪 Deutsch · [🇬🇧 English](../docs_en/operation.md)
 
+> Der Server stammt aus [MojoOne1/waterrower-mqtt](https://github.com/MojoOne1/waterrower-mqtt); dessen frühere Git-Historie ist Teil der Historie dieses Repositorys (`git log -- server/`).
+
 ## Inhalt
 
 - [Voraussetzungen](#voraussetzungen)

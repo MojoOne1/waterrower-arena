@@ -188,6 +188,7 @@ form.card label { display: flex; flex-direction: column; gap: 0.25rem; font-size
 .repo-links a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .repo-links a:hover { color: var(--text, inherit); }
 .repo-links .ico { width: 1em; height: 1em; margin-right: 0.3em; vertical-align: -0.15em; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.repo-links .ico.gh { fill: currentColor; stroke: none; }
 .foot-sep { opacity: 0.6; }
 .foot { max-width: 1100px; margin: 0 auto 2rem; padding: 0 1.5rem; font-size: 0.75rem; color: var(--muted); }
 
